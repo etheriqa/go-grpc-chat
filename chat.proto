@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+service Chat {
+  rpc Authorize(RequestAuthorize) returns (ResponseAuthorize);
+  rpc Connect(RequestConnect) returns (stream Event);
+  rpc Say(CommandSay) returns (None);
+}
+
+message None {}
+
+message RequestAuthorize {
+  string name = 1;
+}
+
+message ResponseAuthorize {
+  bytes session_id = 1;
+}
+
+message RequestConnect {
+  bytes session_id = 1;
+}
+
+message CommandSay {
+  bytes session_id = 1;
+  string message = 2;
+}
+
+message Event {
+  oneof event {
+    EventJoin join = 1;
+    EventLeave leave = 2;
+    EventLog log = 3;
+  }
+}
+
+message EventJoin {
+  string name = 1;
+}
+
+message EventLeave {
+  string name = 1;
+}
+
+message EventLog {
+  string name = 1;
+  string message = 2;
+}
