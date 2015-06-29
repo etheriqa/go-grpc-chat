@@ -2,17 +2,21 @@ package main
 
 import (
 	"errors"
-	"log"
+	"flag"
 	"math/rand"
 	"net"
 	"sync"
 	"time"
 
+	"github.com/Sirupsen/logrus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 
 	pb "github.com/etheriqa/go-grpc-chat/proto"
 )
+
+var debug = flag.Bool("debug", false, "debug mode")
+var log = logrus.New()
 
 const sessionIDLength = 16
 
@@ -30,6 +34,9 @@ type chatServer struct {
 	mu   sync.RWMutex
 	name map[sessionID]string
 	buf  map[sessionID]chan *pb.Event
+
+	in  int64
+	out int64
 }
 
 func newChatServer() *chatServer {
@@ -57,18 +64,23 @@ func (cs *chatServer) generateSessionID() sessionID {
 		r := rand.Uint32()
 		for j := 0; j < 4 && i*4+j < sessionIDLength; j++ {
 			sid[i*4+j] = byte(r)
-			r <<= 8
+			r >>= 8
 		}
 	}
 	return sid
 }
 
 func (cs *chatServer) unsafeExpire(sid sessionID) {
+	if buf, ok := cs.buf[sid]; ok {
+		close(buf)
+	}
 	delete(cs.name, sid)
 	delete(cs.buf, sid)
 }
 
 func (cs *chatServer) Authorize(ctx context.Context, req *pb.RequestAuthorize) (*pb.ResponseAuthorize, error) {
+	cs.in++
+
 	if len(req.Name) == 0 {
 		return nil, errors.New("name must be not empty")
 	}
@@ -97,9 +109,11 @@ func (cs *chatServer) Authorize(ctx context.Context, req *pb.RequestAuthorize) (
 }
 
 func (cs *chatServer) Connect(req *pb.RequestConnect, stream pb.Chat_ConnectServer) error {
+	cs.in++
+
 	var (
 		sid  sessionID      = alignSessionID(req.SessionId)
-		buf  chan *pb.Event = make(chan *pb.Event)
+		buf  chan *pb.Event = make(chan *pb.Event, 1000)
 		err  error
 		name string
 	)
@@ -122,7 +136,7 @@ func (cs *chatServer) Connect(req *pb.RequestConnect, stream pb.Chat_ConnectServ
 	}
 
 	go cs.withReadLock(func() {
-		log.Printf("Join name=%s\n", name)
+		log.Debugf("Join name=%s", name)
 		for _, buf := range cs.buf {
 			buf <- &pb.Event{
 				Join: &pb.EventJoin{
@@ -132,7 +146,7 @@ func (cs *chatServer) Connect(req *pb.RequestConnect, stream pb.Chat_ConnectServ
 		}
 	})
 	defer cs.withReadLock(func() {
-		log.Printf("Leave name=%s\n", name)
+		log.Debugf("Leave name=%s", name)
 		for _, buf := range cs.buf {
 			buf <- &pb.Event{
 				Leave: &pb.EventLeave{
@@ -143,6 +157,7 @@ func (cs *chatServer) Connect(req *pb.RequestConnect, stream pb.Chat_ConnectServ
 	})
 	defer cs.withWriteLock(func() { cs.unsafeExpire(sid) })
 
+	tick := time.Tick(time.Second)
 	for {
 		select {
 		case <-stream.Context().Done():
@@ -151,11 +166,19 @@ func (cs *chatServer) Connect(req *pb.RequestConnect, stream pb.Chat_ConnectServ
 			if err := stream.Send(event); err != nil {
 				return err
 			}
+			cs.out++
+		case <-tick:
+			if err := stream.Send(&pb.Event{None: &pb.EventNone{}}); err != nil {
+				return err
+			}
+			cs.out++
 		}
 	}
 }
 
 func (cs *chatServer) Say(ctx context.Context, req *pb.CommandSay) (*pb.None, error) {
+	cs.in++
+
 	var (
 		sid  sessionID = alignSessionID(req.SessionId)
 		name string
@@ -186,7 +209,7 @@ func (cs *chatServer) Say(ctx context.Context, req *pb.CommandSay) (*pb.None, er
 	}
 
 	go cs.withReadLock(func() {
-		log.Printf("Log name=%s message=%s\n", name, req.Message)
+		log.Debugf("Log name=%s message=%s", name, req.Message)
 		for _, buf := range cs.buf {
 			buf <- &pb.Event{
 				Log: &pb.EventLog{
@@ -201,6 +224,11 @@ func (cs *chatServer) Say(ctx context.Context, req *pb.CommandSay) (*pb.None, er
 }
 
 func main() {
+	flag.Parse()
+	if *debug {
+		log.Level = logrus.DebugLevel
+	}
+
 	lis, err := net.Listen("tcp", ":5000")
 	if err != nil {
 		log.Fatalln("net.Listen:", err)
@@ -211,20 +239,15 @@ func main() {
 		for {
 			select {
 			case <-tick:
-				cs.withReadLock(func() {
-					for _, buf := range cs.buf {
-						buf <- &pb.Event{
-							Log: &pb.EventLog{
-								Name:    "system",
-								Message: time.Now().String(),
-							},
-						}
-					}
-				})
+				log.Infof("in=%d out=%d auth=%d connect=%d", cs.in, cs.out, len(cs.name), len(cs.buf))
+				cs.in = 0
+				cs.out = 0
 			}
 		}
 	}()
 	server := grpc.NewServer()
 	pb.RegisterChatServer(server, cs)
-	server.Serve(lis)
+	if err := server.Serve(lis); err != nil {
+		log.Fatalln("Serve:", err)
+	}
 }

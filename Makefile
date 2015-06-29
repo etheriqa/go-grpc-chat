@@ -1,22 +1,29 @@
 SERVER = build/server
 CLIENT = build/client
 BOT    = build/bot
-SRCS = $(shell find . -name '*.go')
+SERVER_SRCS = $(shell find server -name '*.go')
+CLIENT_SRCS = $(shell find client -name '*.go')
+BOT_SRCS = $(shell find bot -name '*.go')
+COMMON_SRCS = $(shell find common -name '*.go')
+PROTO_SRCS = $(shell find proto -name '*.go')
 
-.PHONY: all build proto
+.PHONY: all build clean proto
 
 all: build
 
 build: $(SERVER) $(CLIENT) $(BOT)
 
+clean:
+	rm $(SERVER) $(CLIENT) $(BOT)
+
 proto:
 	protoc --go_out=plugins=grpc:proto chat.proto
 
-$(SERVER): $(shell find server -name '*.go')
+$(SERVER): $(SERVER_SRCS) $(COMMON_SRCS) $(PROTO_SRCS)
 	go build -o $(SERVER) github.com/etheriqa/go-grpc-chat/server
 
-$(CLIENT): $(shell find client -name '*.go')
+$(CLIENT): $(CLIENT_SRCS) $(COMMON_SRCS) $(PROTO_SRCS)
 	go build -o $(CLIENT) github.com/etheriqa/go-grpc-chat/client
 
-$(BOT): $(shell find bot -name '*.go')
+$(BOT): $(BOT_SRCS) $(COMMON_SRCS) $(PROTO_SRCS)
 	go build -o $(BOT) github.com/etheriqa/go-grpc-chat/bot

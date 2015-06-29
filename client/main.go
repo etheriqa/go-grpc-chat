@@ -5,57 +5,11 @@ import (
 	"io"
 	"log"
 
-	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 
+	"github.com/etheriqa/go-grpc-chat/common"
 	pb "github.com/etheriqa/go-grpc-chat/proto"
 )
-
-func authorize(client pb.ChatClient, name string) (sid []byte, err error) {
-	req := pb.RequestAuthorize{
-		Name: name,
-	}
-	res, err := client.Authorize(context.Background(), &req)
-	if err != nil {
-		return
-	}
-	sid = res.SessionId
-	return
-}
-
-func connect(client pb.ChatClient, sid []byte) (events chan *pb.Event, err error) {
-	req := pb.RequestConnect{
-		SessionId: sid,
-	}
-	stream, err := client.Connect(context.Background(), &req)
-	if err != nil {
-		return
-	}
-	events = make(chan *pb.Event, 1000)
-	go func() {
-		defer func() { close(events) }()
-		for {
-			event, err := stream.Recv()
-			if err == io.EOF {
-				return
-			}
-			if err != nil {
-				log.Fatalln("stream.Recv", err)
-			}
-			events <- event
-		}
-	}()
-	return
-}
-
-func say(client pb.ChatClient, sid []byte, message string) error {
-	req := pb.CommandSay{
-		SessionId: sid,
-		Message:   message,
-	}
-	_, err := client.Say(context.Background(), &req)
-	return err
-}
 
 func main() {
 	conn, err := grpc.Dial(":5000")
@@ -80,12 +34,12 @@ func main() {
 		break
 	}
 
-	sid, err := authorize(client, name)
+	sid, err := common.Authorize(client, name)
 	if err != nil {
 		log.Fatalln("authorize:", err)
 	}
 
-	events, err := connect(client, sid)
+	events, err := common.Connect(client, sid)
 	if err != nil {
 		log.Fatalln("connect:", err)
 	}
@@ -112,7 +66,7 @@ func main() {
 		if n, err := fmt.Scanln(&message); err == io.EOF {
 			return
 		} else if n > 0 {
-			err := say(client, sid, message)
+			err := common.Say(client, sid, message)
 			if err != nil {
 				log.Fatalln("say:", err)
 			}

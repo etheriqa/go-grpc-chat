@@ -27,11 +27,14 @@ message CommandSay {
 
 message Event {
   oneof event {
-    EventJoin join = 1;
-    EventLeave leave = 2;
-    EventLog log = 3;
+    EventNone none = 1;
+    EventJoin join = 2;
+    EventLeave leave = 3;
+    EventLog log = 4;
   }
 }
+
+message EventNone {}
 
 message EventJoin {
   string name = 1;

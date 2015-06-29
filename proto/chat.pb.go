@@ -15,6 +15,7 @@ It has these top-level messages:
 	RequestConnect
 	CommandSay
 	Event
+	EventNone
 	EventJoin
 	EventLeave
 	EventLog
@@ -76,14 +77,22 @@ func (m *CommandSay) String() string { return proto.CompactTextString(m) }
 func (*CommandSay) ProtoMessage()    {}
 
 type Event struct {
-	Join  *EventJoin  `protobuf:"bytes,1,opt,name=join" json:"join,omitempty"`
-	Leave *EventLeave `protobuf:"bytes,2,opt,name=leave" json:"leave,omitempty"`
-	Log   *EventLog   `protobuf:"bytes,3,opt,name=log" json:"log,omitempty"`
+	None  *EventNone  `protobuf:"bytes,1,opt,name=none" json:"none,omitempty"`
+	Join  *EventJoin  `protobuf:"bytes,2,opt,name=join" json:"join,omitempty"`
+	Leave *EventLeave `protobuf:"bytes,3,opt,name=leave" json:"leave,omitempty"`
+	Log   *EventLog   `protobuf:"bytes,4,opt,name=log" json:"log,omitempty"`
 }
 
 func (m *Event) Reset()         { *m = Event{} }
 func (m *Event) String() string { return proto.CompactTextString(m) }
 func (*Event) ProtoMessage()    {}
+
+func (m *Event) GetNone() *EventNone {
+	if m != nil {
+		return m.None
+	}
+	return nil
+}
 
 func (m *Event) GetJoin() *EventJoin {
 	if m != nil {
@@ -105,6 +114,13 @@ func (m *Event) GetLog() *EventLog {
 	}
 	return nil
 }
+
+type EventNone struct {
+}
+
+func (m *EventNone) Reset()         { *m = EventNone{} }
+func (m *EventNone) String() string { return proto.CompactTextString(m) }
+func (*EventNone) ProtoMessage()    {}
 
 type EventJoin struct {
 	Name string `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`
