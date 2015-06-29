@@ -9,7 +9,7 @@ all: build
 build: $(SERVER) $(CLIENT)
 
 $(SERVER): $(SRCS)
-	go build -o $(SERVER) github.com/etheriqa/go-rpc-demo/server
+	go build -o $(SERVER) github.com/etheriqa/go-grpc-chat/server
 
 $(CLIENT): $(SRCS)
-	go build -o $(CLIENT) github.com/etheriqa/go-rpc-demo/client
+	go build -o $(CLIENT) github.com/etheriqa/go-grpc-chat/client
