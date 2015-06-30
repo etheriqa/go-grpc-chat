@@ -13,6 +13,7 @@ import (
 )
 
 var n = flag.Int("n", 1, "number of client")
+var m = flag.Int("m", 1, "query per second")
 
 func bot() {
 	conn, err := grpc.Dial(":5000")
@@ -33,7 +34,7 @@ func bot() {
 	}
 
 	time.Sleep(time.Duration(rand.Intn(1000)) * time.Millisecond)
-	tick := time.Tick(time.Second / 60)
+	tick := time.Tick(time.Second / time.Duration(*m))
 	for {
 		select {
 		case <-tick:
