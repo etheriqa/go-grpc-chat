@@ -40,7 +40,7 @@ func bot() func() {
 		for {
 			select {
 			case <-tick:
-				err := common.Say(client, sid, "hi")
+				err := common.Say(client, sid, "foobarbazfoobarbaz")
 				if err != nil {
 					log.Fatalln("say:", err)
 				}
