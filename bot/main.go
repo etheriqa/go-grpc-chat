@@ -13,14 +13,13 @@ import (
 )
 
 var n = flag.Int("n", 1, "number of client")
-var m = flag.Int("m", 1, "query per second")
+var m = flag.Float64("m", 1, "message per second")
 
-func bot() {
+func bot() func() {
 	conn, err := grpc.Dial(":5000")
 	if err != nil {
 		log.Fatalln("net.Dial:", err)
 	}
-	defer conn.Close()
 	client := pb.NewChatClient(conn)
 
 	sid, err := common.Authorize(client, "bot")
@@ -33,16 +32,20 @@ func bot() {
 		log.Fatalln("connect:", err)
 	}
 
-	time.Sleep(time.Duration(rand.Intn(1000)) * time.Millisecond)
-	tick := time.Tick(time.Second / time.Duration(*m))
-	for {
-		select {
-		case <-tick:
-			err := common.Say(client, sid, "hi")
-			if err != nil {
-				log.Fatalln("say:", err)
+	return func() {
+		defer conn.Close()
+		interval := float64(time.Second) / *m
+		time.Sleep(time.Duration(interval * rand.Float64()))
+		tick := time.Tick(time.Duration(interval))
+		for {
+			select {
+			case <-tick:
+				err := common.Say(client, sid, "hi")
+				if err != nil {
+					log.Fatalln("say:", err)
+				}
+			case <-events:
 			}
-		case <-events:
 		}
 	}
 }
@@ -50,8 +53,12 @@ func bot() {
 func main() {
 	flag.Parse()
 
+	fs := make([]func(), *n)
 	for i := 0; i < *n; i++ {
-		go bot()
+		fs[i] = bot()
+	}
+	for i := 0; i < *n; i++ {
+		go fs[i]()
 	}
 	for {
 		time.Sleep(time.Second)

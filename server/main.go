@@ -35,14 +35,17 @@ type chatServer struct {
 	name map[sessionID]string
 	buf  map[sessionID]chan *pb.Event
 
-	in  int64
-	out int64
+	last time.Time
+	in   int64
+	out  int64
 }
 
 func newChatServer() *chatServer {
 	return &chatServer{
 		name: make(map[sessionID]string),
 		buf:  make(map[sessionID]chan *pb.Event),
+
+		last: time.Now(),
 	}
 }
 
@@ -239,7 +242,17 @@ func main() {
 		for {
 			select {
 			case <-tick:
-				log.Infof("in=%d out=%d auth=%d connect=%d", cs.in, cs.out, len(cs.name), len(cs.buf))
+				now := time.Now()
+				duration := time.Now().Sub(cs.last)
+				log.Infof("IN=%d OUT=%d IPS=%.0f OPS=%.0f auth=%d connect=%d",
+					cs.in,
+					cs.out,
+					float64(cs.in)/float64(duration)*float64(time.Second),
+					float64(cs.out)/float64(duration)*float64(time.Second),
+					len(cs.name),
+					len(cs.buf),
+				)
+				cs.last = now
 				cs.in = 0
 				cs.out = 0
 			}
